@@ -19,3 +19,4 @@ then clone this repo and do:
 And then, **in a separate terminal**:
 
     cargo run --bin client
+
