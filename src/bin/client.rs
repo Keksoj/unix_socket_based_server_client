@@ -17,6 +17,37 @@ fn main() -> anyhow::Result<()> {
     let mut unix_stream =
         UnixStream::connect(socket_path).context("Could not connect to unix socket")?;
 
+    write_request_on_the_socket(&mut unix_stream)
+        .context("Could not write a request on the socket")?;
+
+    // wrap the stream in a BufReader for easier reading
+    let mut buf_reader = BufReader::new(unix_stream);
+
+    // the loop is here so we can receive several responses from the server
+    loop {
+        let response = receive_incoming_message(&mut buf_reader)
+            .context("Could not receive incoming message")?;
+
+        // Depending on the response status, keep listening or exit the loop
+        match response.status {
+            CommandStatus::Ok => {
+                println!("We are done here!");
+                break;
+            }
+            CommandStatus::Error => {
+                println!("The server finally replied with an error");
+                break;
+            }
+            CommandStatus::Processing => {
+                continue;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn write_request_on_the_socket(unix_stream: &mut UnixStream) -> anyhow::Result<()> {
     // Create a request, serialize it and convert to bytes
     let request = Request::new("request", "This is a request, please respond");
     let request_as_string = request
@@ -36,38 +67,23 @@ fn main() -> anyhow::Result<()> {
 
     println!("This request has been written : {:?}", request_as_string);
 
-    // this bufreader is merely a wrapper around the stream that facilitates reading
-    let mut buf_reader = BufReader::new(unix_stream);
-
-    // the loop is here so we can receive several responses from the server
-    loop {
-        // receive a message
-        let mut message = String::new();
-        let _ = buf_reader
-            .read_line(&mut message)
-            .context("Failed at reading response line from the buffer");
-
-        // parse it, it should be a JSON response
-        let response = serde_json::from_str::<Response>(&message)
-            .context("could no deserialize request message")?;
-
-        println!("The server responded: {:?}", response);
-
-        // Depending on the response status, keep listening or exit the loop
-        match response.status {
-            CommandStatus::Ok => {
-                println!("We are done here!");
-                break;
-            }
-            CommandStatus::Error => {
-                println!("The server finally replied with an error");
-                break;
-            }
-            CommandStatus::Processing => {
-                continue;
-            }
-        }
-    }
-
     Ok(())
+}
+
+fn receive_incoming_message(buf_reader: &mut BufReader<UnixStream>) -> anyhow::Result<Response> {
+    let mut message = String::new();
+
+    // the read_line() is a BufReader method to stop reading at a newline
+    // because we now the server separates all messages with a newline
+    let _ = buf_reader
+        .read_line(&mut message)
+        .context("Failed at reading response line from the buffer");
+
+    // parse it, it should be a JSON response
+    let response = serde_json::from_str::<Response>(&message)
+        .context("could no deserialize request message")?;
+
+    println!("The server responded: {:?}", response);
+
+    Ok(response)
 }
