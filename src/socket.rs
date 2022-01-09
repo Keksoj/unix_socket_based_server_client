@@ -3,7 +3,7 @@ use std::{
     os::unix::{
         fs::PermissionsExt,
         io::{AsRawFd, RawFd},
-        net::UnixListener,
+        net::{SocketAddr, UnixListener, UnixStream},
     },
 };
 
@@ -29,6 +29,13 @@ impl Socket {
                 true => "Could not set this socket to be nonblocking",
                 false => "Could not set this socket to be blocking",
             })
+    }
+
+    pub fn accept_connection(&self) -> anyhow::Result<(UnixStream, SocketAddr)> {
+        self.listener.accept().context(format!(
+            "Could not accept connection on socket {}",
+            self.path
+        ))
     }
 }
 
