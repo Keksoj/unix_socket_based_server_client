@@ -21,6 +21,10 @@ impl Request {
     pub fn to_serialized_string(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
     }
+
+    pub fn serialize_to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -53,6 +57,10 @@ impl Response {
     pub fn to_serialized_string(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
     }
+
+    pub fn serialize_to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&self)
+    }
 }
 
 #[cfg(test)]
@@ -68,6 +76,25 @@ mod test {
             serde_json::from_str::<Request>(&stringified_request).unwrap(),
             request
         );
+    }
+
+    #[test]
+    fn serde_from_bytes_works() {
+        let request = Request::new("some-request-id", "some content message");
+        let stringified_request = request.to_serialized_string().unwrap();
+        let request_as_bytes = stringified_request.as_bytes();
+        assert_eq!(
+            serde_json::from_slice::<Request>(request_as_bytes).unwrap(),
+            request
+        );
+    }
+
+    #[test]
+    fn serde_to_bytes_works() {
+        let request = Request::new("some-request-id", "some content message");
+        let stringified_request = request.to_serialized_string().unwrap();
+        let request_as_bytes = stringified_request.as_bytes();
+        assert_eq!(serde_json::to_vec(&request).unwrap(), request_as_bytes);
     }
 
     #[test]

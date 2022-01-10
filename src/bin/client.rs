@@ -20,13 +20,16 @@ fn main() -> anyhow::Result<()> {
     write_request_on_the_socket(&mut unix_stream)
         .context("Could not write a request on the socket")?;
 
-    // wrap the stream in a BufReader for easier reading
-    let mut buf_reader = BufReader::new(unix_stream);
+    // wrap the stream in a BufReader for easier reading, split at each zero byte
+    let mut split_iterator = BufReader::new(unix_stream).split(0);
 
-    // the loop is here so we can receive several responses from the server
-    loop {
-        let response = receive_incoming_message(&mut buf_reader)
-            .context("Could not receive incoming message")?;
+    while let Some(message) = split_iterator.next() {
+        let message = message?;
+        // parse it, it should be a JSON response
+        let response = serde_json::from_slice::<Response>(&message)
+            .context("could no deserialize request message")?;
+
+        println!("The server responded: {:?}", response);
 
         // Depending on the response status, keep listening or exit the loop
         match response.status {
@@ -43,7 +46,6 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
-
     Ok(())
 }
 
@@ -68,22 +70,4 @@ fn write_request_on_the_socket(unix_stream: &mut UnixStream) -> anyhow::Result<(
     println!("This request has been written : {:?}", request_as_string);
 
     Ok(())
-}
-
-fn receive_incoming_message(buf_reader: &mut BufReader<UnixStream>) -> anyhow::Result<Response> {
-    let mut message = String::new();
-
-    // the read_line() is a BufReader method to stop reading at a newline
-    // because we now the server separates all messages with a newline
-    let _ = buf_reader
-        .read_line(&mut message)
-        .context("Failed at reading response line from the buffer");
-
-    // parse it, it should be a JSON response
-    let response = serde_json::from_str::<Response>(&message)
-        .context("could no deserialize request message")?;
-
-    println!("The server responded: {:?}", response);
-
-    Ok(response)
 }

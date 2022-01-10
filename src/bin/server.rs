@@ -65,16 +65,16 @@ fn handle_connection(mut stream: UnixStream) -> anyhow::Result<()> {
             CommandStatus::Processing,
             "still processing...",
         )
-        .to_serialized_string()
+        .serialize_to_bytes()
         .context("Could not serialize response")?;
 
-        // add a newline, to separate instructions
-        processing.push('\n');
+        // add a zero byte, to separate instructions
+        processing.push(0);
 
         // pretty normal write logic
-        println!("Sending response: {}", processing);
+        println!("Sending processing response");
         stream
-            .write(processing.as_bytes())
+            .write(&processing)
             .context("Could not write processing response onto the unix stream")?;
 
         sleep(Duration::from_secs(1));
@@ -86,16 +86,16 @@ fn handle_connection(mut stream: UnixStream) -> anyhow::Result<()> {
         _ => Response::new("what", CommandStatus::Error, "Sorry what?"),
     };
 
-    let mut response_as_string = response
-        .to_serialized_string()
+    let mut response_as_bytes = response
+        .serialize_to_bytes()
         .context("Could not serialize response")?;
 
-    // the newline is a separator, so that the client can distinguish between responses
-    response_as_string.push('\n');
+    // the zero byte is a separator, so that the client can distinguish between responses
+    response_as_bytes.push(0);
 
     // the usual write logic
     stream
-        .write(response_as_string.as_bytes())
+        .write(&response_as_bytes)
         .context("Could not write response onto the unix stream")?;
 
     Ok(())
